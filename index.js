@@ -12,91 +12,71 @@ async function run() {
   const searchUrl = `https://shop.nordstrom.com/c/womens-clothing?top=72&offset=9`;
   await page.goto(searchUrl, {waitUntil: 'networkidle2'});
   const height = 1400;
-  const width = 1000;
+  const width = 1200;
   await page.setViewport({height, width});
 
-  const LIST_PRODUCT_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div:nth-child(1) > div > div > div:nth-child(5) > div > div > div > section > div > div > div:nth-child(INDEX) > article > div.media_12txnm > a';
-
   const numPages = await getNumPages(page);
-
-  const LENGTH_SELECTOR_CLASS = 'productModule_1pCIbl npr-product-module';
+  const LIST_PRODUCT_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div:nth-child(1) > div > div > div:nth-child(5) > div > div > div > section > div > div > div:nth-child(INDEX) > article > div.media_12txnm > a';
   const NAME_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div.dark_Z19mnhH.brandon_Z18sClN.medium_jDd9A._1bxrUw > div > div > div._2duATC > div.olmJG > div.Z1vcOzQ > div.Z2e29B3 > div > div > div:nth-child(1) > div.productTitleWrapper_ZOyw7k > h1';
   const DESCRIPTION_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div.dark_Z19mnhH.brandon_Z18sClN.medium_jDd9A._1bxrUw > div > div > div._2duATC > div.olmJG > div.Z1vcOzQ > div.Z2e29B3 > div > div > div.Z1jyCce > div';
   const BRAND_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div.dark_Z19mnhH.brandon_Z18sClN.medium_jDd9A._1bxrUw > div > div > div._2duATC > div.olmJG > div.Z1vcOzQ > div.Z2e29B3 > div > div > div:nth-child(1) > section > h2 > a > span > span';
-  const PHOTO_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div.dark_Z19mnhH.brandon_Z18sClN.medium_jDd9A._1bxrUw > div > div > div._2duATC > div.olmJG > div.Z1vcOzQ > div.opGe5 > div > section > div.scrollbar_yV9D > div.scrollableContent_Zh0XVk > div > div > img';
-  const POPUP_SELECTOR_CLASS = '__acs';
   const CLOSE_POPUP_SELECTOR = '#acsMainInvite > div > a.acsInviteButton.acsDeclineButton';
-
-  console.log('Numpages: ', numPages);
-
+  
   for (let h = 1; h <= numPages; h++) {
     let pageUrl = searchUrl + '&page=' + h;
     await page.goto(pageUrl);
-
-    let listLength = await page.evaluate((sel) => {
-      return document.getElementsByClassName(sel).length;
-    }, LENGTH_SELECTOR_CLASS);
-    let listProducts = await page.evaluate((sel) => {
-        return document.getElementsByClassName(sel);
-      }, LENGTH_SELECTOR_CLASS);
-    console.log('List length: ', listLength);
-    console.log('List: ', listProducts);
     
-    for (let i = 1; i <= listLength; i++) {
-      let productSelector = LIST_PRODUCT_SELECTOR.replace("INDEX", i);
+    // Max of 72 items per page
+    for (let i = 1; i <= 73; i++) {
+        let productSelector = LIST_PRODUCT_SELECTOR.replace("INDEX", i);
 
         // Set up the wait for navigation before clicking the link.
         const navigationPromise = page.waitForNavigation();
-        try {
-            page.click(CLOSE_POPUP_SELECTOR).then(r => console.log(r));
-        }
-        finally {
-            console.log("No popup!");
-        }
+        
+        // Closes popup if it's on the page
+        try { await page.click(CLOSE_POPUP_SELECTOR); }
+        catch(error) { }
 
-        // Clicking the link will indirectly cause a navigation
-        await page.click(productSelector);
+        // Tries to click on the product... if no product, continue to the next product
+        try { await page.click(productSelector); }
+        catch(error) { continue; }
 
-        // The navigationPromise resolves after navigation has finished
         await navigationPromise;
-
-      console.log('MADE IT');
     
-      try {
-          page.click(CLOSE_POPUP_SELECTOR);
-      }
-      finally {
-          console.log("No popup!");
-      }
+        // Closes popup if it's on the product page
+        try { await page.click(CLOSE_POPUP_SELECTOR) }
+        catch(error) { }
 
-      let name = await page.evaluate((sel) => {
-        let html = document.querySelector(sel).innerHTML;
-        return html;
-        }, NAME_SELECTOR);
-      console.log('name: ', name);
+        let name = await page.evaluate((sel) => {
+            let html = document.querySelector(sel).innerHTML;
+            return html;
+         }, NAME_SELECTOR);
+        // console.log('name: ', name);
 
-      let description = await page.evaluate((sel) => {
-        let element = document.querySelector(sel);
-        return element ? element.innerHTML: null;
-      }, DESCRIPTION_SELECTOR);
-      console.log('description: ', description);
+        let description = await page.evaluate((sel) => {
+            let element = document.querySelector(sel);
+            return element ? element.innerHTML: null;
+        }, DESCRIPTION_SELECTOR);
+        // console.log('description: ', description);
 
-      let brand = await page.evaluate((sel) => {
-        let element = document.querySelector(sel);
-        return element ? element.innerHTML: null;
-      }, BRAND_SELECTOR);
-      brand = brand.replace('<sup>®</sup>', '');
-      console.log('brand: ', brand);
+        let brand = await page.evaluate((sel) => {
+            let element = document.querySelector(sel);
+            return element ? element.innerHTML: null;
+        }, BRAND_SELECTOR);
 
-      await page.goBack({waitUntil: ['load','domcontentloaded','networkidle0','networkidle2']});
+        // Replaces random copyright logo with nothing
+        brand = brand.replace('<sup>®</sup>', '');
+        // console.log('brand: ', brand);
 
-      console.log(name, ' -> ', brand, ' -> ', description);
+        await page.goBack({waitUntil: ['load','domcontentloaded','networkidle0','networkidle2']});
+        console.log('--------------')
+        console.log(name, ' -> ', brand, ' -> ', description);
 
-      upsertProduct({
-        name: name,
-        brand: brand,
-        description: description,
-        dateCrawled: new Date()
+        upsertProduct({
+            name: name,
+            brand: brand,
+            description: description,
+            dateCrawled: new Date()
       });
     }
   }
