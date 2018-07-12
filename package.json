@@ -1,0 +1,24 @@
+{
+  "name": "nord-products",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nanxiliu/nord-products.git"
+  },
+  "author": "Nanxi Liu",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nanxiliu/nord-products/issues"
+  },
+  "homepage": "https://github.com/nanxiliu/nord-products#readme",
+  "dependencies": {
+    "mongoose": "^5.2.3",
+    "npm": "^6.1.0",
+    "puppeteer": "^1.5.0"
+  }
+}
