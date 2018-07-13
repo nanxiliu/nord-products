@@ -1,5 +1,4 @@
 const puppeteer = require('puppeteer');
-// const CREDS = require('./creds');
 const mongoose = require('mongoose');
 const Product = require('./models/product');
 
@@ -13,6 +12,7 @@ async function run() {
   await page.goto(searchUrl, {waitUntil: 'networkidle2'});
   const height = 1400;
   const width = 1200;
+  // Necessary to set viewport or else the screen isn't big enough to click every 3rd item
   await page.setViewport({height, width});
 
   const numPages = await getNumPages(page);
@@ -33,7 +33,7 @@ async function run() {
         // Set up the wait for navigation before clicking the link.
         const navigationPromise = page.waitForNavigation();
         
-        // Closes popup if it's on the page
+        // Closes random feedback popup if shows up on the page
         try { await page.click(CLOSE_POPUP_SELECTOR); }
         catch(error) { }
 
@@ -43,7 +43,7 @@ async function run() {
 
         await navigationPromise;
     
-        // Closes popup if it's on the product page
+        // Closes random feedback popup if shows up on the product page
         try { await page.click(CLOSE_POPUP_SELECTOR) }
         catch(error) { }
 
@@ -68,7 +68,6 @@ async function run() {
         brand = brand.replace('<sup>®</sup>', '');
         // console.log('brand: ', brand);
 
-        await page.goBack({waitUntil: ['load','domcontentloaded','networkidle0','networkidle2']});
         console.log('--------------')
         console.log(name, ' -> ', brand, ' -> ', description);
 
@@ -77,7 +76,9 @@ async function run() {
             brand: brand,
             description: description,
             dateCrawled: new Date()
-      });
+        });
+        
+        await page.goBack({waitUntil: ['load','domcontentloaded','networkidle0','networkidle2']});
     }
   }
 
