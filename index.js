@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer');
 const mongoose = require('mongoose');
-const Product = require('./models/product');
+// const Product = require('./models/product');
+const StyleId = require('./models/styleId');
 
 async function run() {
   const browser = await puppeteer.launch({
@@ -8,7 +9,8 @@ async function run() {
   });
 
   const page = await browser.newPage();
-  const searchUrl = `https://shop.nordstrom.com/c/womens-clothing?top=72&offset=9`;
+  // Searching just through women's clothing
+  const searchUrl = `https://shop.nordstrom.com/c/womens-clothing?top=72&offset=9&sort=Newest`;
   await page.goto(searchUrl, {waitUntil: 'networkidle2'});
   const height = 1400;
   const width = 1200;
@@ -17,69 +19,46 @@ async function run() {
 
   const numPages = await getNumPages(page);
   const LIST_PRODUCT_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div:nth-child(1) > div > div > div:nth-child(5) > div > div > div > section > div > div > div:nth-child(INDEX) > article > div.media_12txnm > a';
-  const NAME_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div.dark_Z19mnhH.brandon_Z18sClN.medium_jDd9A._1bxrUw > div > div > div._2duATC > div.olmJG > div.Z1vcOzQ > div.Z2e29B3 > div > div > div:nth-child(1) > div.productTitleWrapper_ZOyw7k > h1';
-  const DESCRIPTION_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div.dark_Z19mnhH.brandon_Z18sClN.medium_jDd9A._1bxrUw > div > div > div._2duATC > div.olmJG > div.Z1vcOzQ > div.Z2e29B3 > div > div > div.Z1jyCce > div';
-  const BRAND_SELECTOR = '#root > div > div.Z1sM77l > div > div:nth-child(2) > div.dark_Z19mnhH.brandon_Z18sClN.medium_jDd9A._1bxrUw > div > div > div._2duATC > div.olmJG > div.Z1vcOzQ > div.Z2e29B3 > div > div > div:nth-child(1) > section > h2 > a > span > span';
-  const CLOSE_POPUP_SELECTOR = '#acsMainInvite > div > a.acsInviteButton.acsDeclineButton';
-  
+  let count = 0;
+
   for (let h = 1; h <= numPages; h++) {
     let pageUrl = searchUrl + '&page=' + h;
     await page.goto(pageUrl);
+
+    // Closes random feedback popup if shows up on the page
+    try { await page.click(CLOSE_POPUP_SELECTOR); }
+    catch(error) { }
     
     // Max of 72 items per page
-    for (let i = 1; i <= 73; i++) {
+    for (let i = 1; i <= 72; i++) {
         let productSelector = LIST_PRODUCT_SELECTOR.replace("INDEX", i);
 
-        // Set up the wait for navigation before clicking the link.
-        const navigationPromise = page.waitForNavigation();
+        // Sample href: https://shop.nordstrom.com/s/vince-camuto-sleeveless-smocked-mock-neck-blouse-regular-petite/4999900?origin=category-personalizedsort&breadcrumb=Home%2FWomen%2FAll%20Women&color=classic%20navy
+        let styleId = await page.evaluate((sel) => {
+            try {
+                let href = document.querySelector(sel).getAttribute('href');
+            }
+            catch (error) {
+                return null;
+            }
+            let href = document.querySelector(sel).getAttribute('href');
+            questionIndex = href.indexOf('?');
+            href = href.slice(questionIndex - 7, questionIndex);
+            return href ? href: null;
+          }, productSelector);
         
-        // Closes random feedback popup if shows up on the page
-        try { await page.click(CLOSE_POPUP_SELECTOR); }
-        catch(error) { }
+        if (!styleId)
+          continue;
 
-        // Tries to click on the product... if no product, continue to the next product
-        try { await page.click(productSelector); }
-        catch(error) { continue; }
-
-        await navigationPromise;
-    
-        // Closes random feedback popup if shows up on the product page
-        try { await page.click(CLOSE_POPUP_SELECTOR) }
-        catch(error) { }
-
-        let name = await page.evaluate((sel) => {
-            let html = document.querySelector(sel).innerHTML;
-            return html;
-         }, NAME_SELECTOR);
-        // console.log('name: ', name);
-
-        let description = await page.evaluate((sel) => {
-            let element = document.querySelector(sel);
-            return element ? element.innerHTML: null;
-        }, DESCRIPTION_SELECTOR);
-        // console.log('description: ', description);
-
-        let brand = await page.evaluate((sel) => {
-            let element = document.querySelector(sel);
-            return element ? element.innerHTML: null;
-        }, BRAND_SELECTOR);
-
-        // Replaces random copyright logo with nothing
-        brand = brand.replace('<sup>®</sup>', '');
-        // console.log('brand: ', brand);
-
-        console.log('--------------')
-        console.log(name, ' -> ', brand, ' -> ', description);
+        console.log('styleId: ', styleId);
 
         upsertProduct({
-            name: name,
-            brand: brand,
-            description: description,
+            styleId: styleId,
             dateCrawled: new Date()
         });
-        
-        await page.goBack({waitUntil: ['load','domcontentloaded','networkidle0','networkidle2']});
+        count += 1;
     }
+    console.log('Total saved: ', count);
   }
 
   browser.close();
@@ -96,20 +75,20 @@ async function getNumPages(page) {
     return parseInt(inner);
 }
 
-function upsertProduct(productObj) {
+function upsertProduct(styleIdObj) {
   // Added :27017 to avoid error
-  const DB_URL = 'mongodb://localhost:27017/products';
+  const DB_URL = 'mongodb://localhost:27017/styleIds';
 
   if (mongoose.connection.readyState == 0) {
     // Added useNewUrlParser to avoid error
     mongoose.connect(DB_URL, { useNewUrlParser: true}); 
   }
 
-  // if this name exists, update the entry, don't insert
-  const conditions = { name: productObj.name };
+  // if this styleId exists, update the entry, don't insert
+  const conditions = { styleId: styleIdObj.styleId };
   const options = { upsert: true, new: true, setDefaultsOnInsert: true };
 
-  Product.findOneAndUpdate(conditions, productObj, options, (err, result) => {
+  StyleId.findOneAndUpdate(conditions, styleIdObj, options, (err, result) => {
     if (err) {
       throw err;
     }
